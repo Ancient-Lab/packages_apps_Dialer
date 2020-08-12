@@ -25,6 +25,8 @@ import android.os.Trace;
 import android.support.annotation.NonNull;
 import android.telecom.CallAudioState;
 import android.view.Display;
+import android.pocket.IPocketCallback;
+import android.pocket.PocketManager;
 import com.android.dialer.common.LogUtil;
 import com.android.incallui.InCallPresenter.InCallState;
 import com.android.incallui.InCallPresenter.InCallStateListener;
@@ -61,11 +63,37 @@ public class ProximitySensor
   private boolean isRttCall;
   private SharedPreferences mPrefs;
 
+  private PocketManager mPocketManager;
+  private boolean mIsDeviceInPocket;
+  private final IPocketCallback mPocketCallback = new IPocketCallback.Stub() {
+    @Override
+    public void onStateChanged(boolean isDeviceInPocket, int reason) {
+        boolean changed = false;
+        if (reason == PocketManager.REASON_SENSOR) {
+            if (isDeviceInPocket != mIsDeviceInPocket) {
+                mIsDeviceInPocket = isDeviceInPocket;
+                changed = true;
+            }
+        } else {
+            changed = isDeviceInPocket != mIsDeviceInPocket;
+            mIsDeviceInPocket = false;
+        }
+        if (changed) {
+            updateProximitySensorMode();
+        }
+     }
+    };
+
   public ProximitySensor(
       @NonNull Context context,
       @NonNull AudioModeProvider audioModeProvider,
       @NonNull AccelerometerListener accelerometerListener) {
     Trace.beginSection("ProximitySensor.Constructor");
+
+    mPocketManager = (PocketManager) context.getSystemService(Context.POCKET_SERVICE);
+        if (mPocketManager != null) {
+            mPocketManager.addCallback(mPocketCallback);
+        }
 
     mPrefs = PreferenceManager.getDefaultSharedPreferences(context);
     final boolean mIsProximitySensorDisabled = mPrefs.getBoolean(PREF_KEY_DISABLE_PROXI_SENSOR, false);
